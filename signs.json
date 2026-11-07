@@ -1,0 +1,215 @@
+{
+  "version": "3",
+  "signs": [
+    {
+      "key": "OPEN_PALM",
+      "name": "Open palm",
+      "how": "All five fingers up and spread",
+      "message": "I need help. Please come quickly.",
+      "enabled": true
+    },
+    {
+      "key": "CLOSED_FIST",
+      "name": "Closed fist",
+      "how": "Fingers curled into a fist",
+      "message": "I am in pain.",
+      "enabled": true
+    },
+    {
+      "key": "POINTING_UP",
+      "name": "One finger up",
+      "how": "Index finger pointing up, others curled",
+      "message": "I need water.",
+      "enabled": true
+    },
+    {
+      "key": "VICTORY",
+      "name": "Two fingers",
+      "how": "Index and middle finger up in a V",
+      "message": "I am hungry.",
+      "enabled": true
+    },
+    {
+      "key": "THREE",
+      "name": "Three fingers",
+      "how": "Index, middle and ring finger up, pinky down",
+      "message": "Please call a doctor.",
+      "enabled": true
+    },
+    {
+      "key": "FOUR",
+      "name": "Four fingers",
+      "how": "Four fingers up, thumb tucked in",
+      "message": "I need my medicine.",
+      "enabled": true
+    },
+    {
+      "key": "PINKY",
+      "name": "Pinky only",
+      "how": "Only the little finger up",
+      "message": "I need to use the toilet.",
+      "enabled": true
+    },
+    {
+      "key": "THUMB_UP",
+      "name": "Thumbs up",
+      "how": "Fist with the thumb pointing up",
+      "message": "Yes.",
+      "enabled": true
+    },
+    {
+      "key": "THUMB_DOWN",
+      "name": "Thumbs down",
+      "how": "Fist with the thumb pointing down",
+      "message": "No.",
+      "enabled": true
+    },
+    {
+      "key": "CALL",
+      "name": "Call sign",
+      "how": "Thumb and little finger out, others curled",
+      "message": "Please call my family.",
+      "enabled": true
+    },
+    {
+      "key": "OK",
+      "name": "OK sign",
+      "how": "Thumb and index touching, other fingers up",
+      "message": "I am okay.",
+      "enabled": true
+    },
+    {
+      "key": "ILOVEYOU",
+      "name": "Love sign",
+      "how": "Thumb, index and little finger out",
+      "message": "Thank you. I love you.",
+      "enabled": true
+    },
+    {
+      "key": "L_SHAPE",
+      "name": "L shape",
+      "how": "Thumb and index out at a right angle, others curled",
+      "message": "I feel dizzy.",
+      "enabled": true
+    },
+    {
+      "key": "HORNS",
+      "name": "Horns",
+      "how": "Index and little finger up, thumb tucked in",
+      "message": "I am scared.",
+      "enabled": true
+    },
+    {
+      "key": "POINT_DOWN",
+      "name": "Point down",
+      "how": "Index finger pointing down, others curled",
+      "message": "I need to lie down.",
+      "enabled": true
+    },
+    {
+      "key": "POINT_SIDE",
+      "name": "Point sideways",
+      "how": "Index finger pointing left or right, others curled",
+      "message": "Please come here.",
+      "enabled": true
+    },
+    {
+      "key": "THUMB_SIDE",
+      "name": "Thumb sideways",
+      "how": "Fist with the thumb pointing to the side",
+      "message": "I need to sit down.",
+      "enabled": true
+    },
+    {
+      "key": "PINCH_ALL",
+      "name": "Fingertips together",
+      "how": "All fingertips gathered at the thumb tip",
+      "message": "Please wait a moment.",
+      "enabled": false
+    },
+    {
+      "key": "FLAT_SIDE",
+      "name": "Flat hand sideways",
+      "how": "Open hand held flat, fingers pointing sideways",
+      "message": "I am tired. I want to rest.",
+      "enabled": false
+    },
+    {
+      "key": "BOTH_OPEN",
+      "name": "Both palms open",
+      "how": "Both hands up, palms open, held apart",
+      "message": "Emergency! Please call an ambulance.",
+      "enabled": true
+    },
+    {
+      "key": "PALMS_TOGETHER",
+      "name": "Palms together",
+      "how": "Both palms pressed together, fingers up",
+      "message": "Please. Thank you.",
+      "enabled": true
+    },
+    {
+      "key": "BOTH_FIST",
+      "name": "Both fists",
+      "how": "Both hands closed into fists, held apart",
+      "message": "I cannot breathe.",
+      "enabled": true
+    },
+    {
+      "key": "BOTH_THUMBS_UP",
+      "name": "Both thumbs up",
+      "how": "Thumbs up on both hands",
+      "message": "I am fine, thank you.",
+      "enabled": true
+    },
+    {
+      "key": "BOTH_THUMBS_DOWN",
+      "name": "Both thumbs down",
+      "how": "Thumbs down on both hands",
+      "message": "I feel very unwell.",
+      "enabled": true
+    },
+    {
+      "key": "BOTH_POINT_UP",
+      "name": "Both index up",
+      "how": "Index finger up on both hands",
+      "message": "Please hurry.",
+      "enabled": true
+    },
+    {
+      "key": "BOTH_VICTORY",
+      "name": "Both V signs",
+      "how": "Two fingers up on both hands",
+      "message": "I want to go home.",
+      "enabled": true
+    },
+    {
+      "key": "BOTH_CALL",
+      "name": "Both call signs",
+      "how": "Thumb and little finger out on both hands",
+      "message": "Please call the police.",
+      "enabled": true
+    },
+    {
+      "key": "BOTH_ILOVEYOU",
+      "name": "Both love signs",
+      "how": "Love sign on both hands",
+      "message": "Thank you so much.",
+      "enabled": true
+    },
+    {
+      "key": "FIST_PALM",
+      "name": "Fist and open palm",
+      "how": "One fist and one open palm, held close together",
+      "message": "Please call a nurse.",
+      "enabled": true
+    },
+    {
+      "key": "CROSSED_FISTS",
+      "name": "Crossed fists",
+      "how": "Cross both fists or forearms in an X, touching",
+      "message": "Please stop. No more.",
+      "enabled": true
+    }
+  ]
+}

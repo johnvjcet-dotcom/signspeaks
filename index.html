@@ -1,0 +1,725 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b1220">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg">
+<title>Sign Speak</title>
+<style>
+  :root{
+    --bg:#0b1220; --card:#141d30; --line:#25314d; --txt:#eef2fb; --mut:#8fa0c2;
+    --ok:#19a85a; --warn:#f0a020; --bad:#e5484d; --acc:#4c8dff;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  body{display:flex;flex-direction:column;height:100dvh;overflow:hidden}
+  #stage{position:relative;flex:0 0 42%;background:#000;overflow:hidden}
+  #stage video,#stage canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+  #stage.mirror video,#stage.mirror canvas{transform:scaleX(-1)}
+  #chip{position:absolute;top:8px;left:8px;background:rgba(11,18,32,.75);padding:6px 12px;
+    border-radius:999px;font-size:13px;z-index:2}
+  #banner{position:absolute;left:0;right:0;bottom:0;padding:14px 16px;text-align:center;
+    font-size:clamp(22px,6.5vw,34px);font-weight:700;line-height:1.2;
+    background:rgba(11,18,32,.82);min-height:64px;display:flex;align-items:center;justify-content:center;
+    transition:background .15s}
+  #banner.alert{background:var(--bad)}
+  #banner.ok{background:var(--ok)}
+  #banner.info{background:rgba(76,141,255,.9)}
+  #bar{position:absolute;left:0;right:0;bottom:0;height:6px;background:rgba(255,255,255,.15);z-index:2}
+  #bar i{display:block;height:100%;width:0;background:var(--warn)}
+  #start{position:absolute;inset:0;display:flex;flex-direction:column;gap:14px;align-items:center;
+    justify-content:center;background:var(--bg);text-align:center;padding:24px;z-index:3}
+  #start h1{margin:0;font-size:28px}
+  #start p{margin:0;color:var(--mut);max-width:32ch}
+  button{font:inherit;color:var(--txt);background:var(--card);border:1px solid var(--line);
+    border-radius:14px;padding:14px 18px;min-height:52px}
+  button.primary{background:var(--acc);border-color:var(--acc);font-weight:700}
+  button.danger{color:#ff9a9d}
+  button:active{filter:brightness(1.2)}
+  #panel{flex:1;overflow-y:auto;padding:14px 14px 8px}
+  nav{display:flex;border-top:1px solid var(--line);background:var(--card);
+    padding-bottom:env(safe-area-inset-bottom)}
+  nav button{flex:1;border:0;border-radius:0;background:transparent;color:var(--mut);min-height:58px;padding:8px 4px}
+  nav button.on{color:var(--txt);box-shadow:inset 0 3px 0 var(--acc)}
+  .hide{display:none!important}
+  h2{margin:4px 0 10px;font-size:18px}
+  .hint{color:var(--mut);font-size:14px;margin:0 0 12px;line-height:1.4}
+  .row{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);
+    border-radius:14px;padding:10px 12px;margin-bottom:8px}
+  .row.sel{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc)}
+  .row .nm{font-weight:700;flex:0 0 auto;min-width:84px}
+  .row .ct{color:var(--mut);font-size:13px;flex:0 0 auto}
+  input[type=text],.row input,.sign input[type=text]{background:#0d1526;color:var(--txt);border:1px solid var(--line);
+    border-radius:10px;padding:10px;font:inherit;min-width:0;width:100%}
+  .row input{flex:1;width:auto}
+  .row button{min-height:40px;padding:6px 12px}
+  .sign{display:flex;gap:12px;align-items:center;background:var(--card);border:1px solid var(--line);
+    border-radius:14px;padding:10px 12px;margin-bottom:8px}
+  .sign .ico{flex:0 0 52px;height:52px;border-radius:12px;background:#0d1526;display:flex;
+    align-items:center;justify-content:center;font-size:30px;font-weight:700}
+  .sign .ico.sm{font-size:13px}
+  .sign .ico.two{font-size:20px}
+  .sign .info{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+  .sign small{color:var(--mut)}
+  .sign .sw input{width:26px;height:26px}
+  .hist{list-style:none;padding:0;margin:0}
+  .hist li{padding:10px 12px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:10px}
+  .hist li span{color:var(--mut);font-size:13px;white-space:nowrap}
+  .field{display:flex;flex-direction:column;gap:6px;margin-bottom:16px}
+  .field label{font-weight:600}
+  .field input[type=range]{width:100%}
+  .btns{display:flex;gap:10px;flex-wrap:wrap}
+  #toast{position:fixed;left:50%;top:14px;transform:translateX(-50%);background:#000c;padding:10px 16px;
+    border-radius:20px;font-size:14px;z-index:9;opacity:0;transition:opacity .2s;pointer-events:none}
+  #toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<div id="stage" class="mirror">
+  <video id="video" playsinline muted></video>
+  <canvas id="overlay"></canvas>
+  <div id="chip">Starting…</div>
+  <div id="bar"><i id="barfill"></i></div>
+  <div id="banner">Show a sign and hold it</div>
+  <div id="start">
+    <h1>Sign Speak</h1>
+    <p>Recognises common hand signs and turns them into text and a spoken voice. No teaching needed.</p>
+    <p style="font-size:14px">Everything stays on this device.</p>
+    <button class="primary" id="startBtn" disabled>Starting…</button>
+    <p id="status"></p>
+  </div>
+</div>
+
+<div id="panel">
+  <section id="tab-talk">
+    <h2>Recent messages</h2>
+    <p class="hint">Show any sign from the <b>Signs</b> tab and hold it still for about a second.
+      The message appears above and is spoken aloud.</p>
+    <ul class="hist" id="hist"><li><span>Nothing yet</span></li></ul>
+  </section>
+
+  <section id="tab-signs" class="hide">
+    <h2>One-hand signs</h2>
+    <p class="hint">These work right away, with either hand. Change what each one says, or switch off any sign you do not want.
+      Tip: switch off signs that look like a resting hand, so it never speaks by accident.</p>
+    <div id="slist"></div>
+    <div class="btns">
+      <button id="loadFile">Load signs file</button>
+      <button id="saveFile">Save signs file</button>
+      <button id="resetMsgs" class="danger">Reset to defaults</button>
+    </div>
+    <input type="file" id="signsFile" accept="application/json,.json" class="hide">
+    <p class="hint" style="margin-top:12px">A signs file lists each sign's name, message and on/off.
+      Save one, edit it in any text editor, then load it. Or place it next to this page as
+      <b>signs.json</b> and it loads automatically.</p>
+  </section>
+
+  <section id="tab-teach" class="hide">
+    <h2>Your own signs (optional)</h2>
+    <p class="hint">Add a personal sign the built-in ones do not cover. Tap it, tap Record, then show the
+      sign for 5 seconds, moving the hand slightly. Also record <b>NEUTRAL</b> (relaxed hand) so a
+      resting hand is never read as a sign.</p>
+    <div id="glist"></div>
+    <div class="btns" style="margin:12px 0">
+      <button class="primary" id="recBtn">Record selected sign</button>
+      <button id="clearSel" class="danger">Clear its samples</button>
+    </div>
+    <div class="row">
+      <input id="newName" type="text" placeholder="New sign name (e.g. BLANKET)" maxlength="20">
+      <button id="addBtn">Add</button>
+    </div>
+  </section>
+
+  <section id="tab-set" class="hide">
+    <h2>Settings</h2>
+    <div class="field">
+      <label for="hold">Hold time: <span id="holdV"></span> s</label>
+      <input type="range" id="hold" min="0.5" max="2.5" step="0.1">
+      <p class="hint">Longer = fewer accidental messages.</p>
+    </div>
+    <div class="field">
+      <label for="conf">Strictness: <span id="confV"></span>%</label>
+      <input type="range" id="conf" min="50" max="95" step="5">
+      <p class="hint">Higher = only very sure matches are accepted.</p>
+    </div>
+    <div class="field">
+      <label><input type="checkbox" id="speak"> Speak messages aloud</label>
+    </div>
+    <div class="btns">
+      <button id="flip">Switch front/back camera</button>
+      <button id="test">Test voice</button>
+      <button id="export">Back up settings</button>
+      <button id="import">Restore backup</button>
+      <button id="reset" class="danger">Erase everything</button>
+    </div>
+    <input type="file" id="file" accept="application/json" class="hide">
+    <p class="hint" style="margin-top:16px">Tip: use a plain background and good light, with the whole hand in view.</p>
+  </section>
+</div>
+
+<nav>
+  <button data-tab="talk" class="on">Talk</button>
+  <button data-tab="signs">Signs</button>
+  <button data-tab="teach">Own signs</button>
+  <button data-tab="set">Settings</button>
+</nav>
+<div id="toast"></div>
+
+<script type="module">
+import { GestureRecognizer, FilesetResolver } from
+  "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs";
+
+const WASM = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm";
+const MODEL = "https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task";
+const LS = "signspeak.v2";
+const MAX_DIST = 1.5;
+
+const $ = s => document.querySelector(s);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+/* ---------- built-in signs ---------- */
+const BUILTIN = [
+  { key: "OPEN_PALM",   icon: "✋", name: "Open palm",      how: "All five fingers up and spread",               message: "I need help. Please come quickly.", urgent: true },
+  { key: "CLOSED_FIST", icon: "✊", name: "Closed fist",    how: "Fingers curled into a fist",                   message: "I am in pain.", urgent: true },
+  { key: "POINTING_UP", icon: "☝️", name: "One finger up",  how: "Index finger pointing up, others curled",      message: "I need water." },
+  { key: "VICTORY",     icon: "✌️", name: "Two fingers",    how: "Index and middle finger up in a V",            message: "I am hungry." },
+  { key: "THREE",       icon: "3",  name: "Three fingers",  how: "Index, middle and ring finger up, pinky down", message: "Please call a doctor.", urgent: true },
+  { key: "FOUR",        icon: "4",  name: "Four fingers",   how: "Four fingers up, thumb tucked in",             message: "I need my medicine." },
+  { key: "PINKY",       icon: "pinky", name: "Pinky only",  how: "Only the little finger up",                    message: "I need to use the toilet." },
+  { key: "THUMB_UP",    icon: "👍", name: "Thumbs up",      how: "Fist with the thumb pointing up",              message: "Yes." },
+  { key: "THUMB_DOWN",  icon: "👎", name: "Thumbs down",    how: "Fist with the thumb pointing down",            message: "No." },
+  { key: "CALL",        icon: "🤙", name: "Call sign",      how: "Thumb and little finger out, others curled",   message: "Please call my family.", urgent: true },
+  { key: "OK",          icon: "👌", name: "OK sign",        how: "Thumb and index touching, other fingers up",   message: "I am okay." },
+  { key: "ILOVEYOU",    icon: "🤟", name: "Love sign",      how: "Thumb, index and little finger out",           message: "Thank you. I love you." },
+  { key: "L_SHAPE",     icon: "L",  name: "L shape",         how: "Thumb and index out at a right angle, others curled", message: "I feel dizzy." },
+  { key: "HORNS",       icon: "🤘", name: "Horns",           how: "Index and little finger up, thumb tucked in",         message: "I am scared." },
+  { key: "POINT_DOWN",  icon: "👇", name: "Point down",      how: "Index finger pointing down, others curled",           message: "I need to lie down." },
+  { key: "POINT_SIDE",  icon: "👉", name: "Point sideways",  how: "Index finger pointing left or right, others curled",  message: "Please come here." },
+  { key: "THUMB_SIDE",  icon: "thumb", name: "Thumb sideways", how: "Fist with the thumb pointing to the side",          message: "I need to sit down." },
+  { key: "PINCH_ALL",   icon: "pinch", name: "Fingertips together", how: "All fingertips gathered at the thumb tip",     message: "Please wait a moment.", off: true },
+  { key: "FLAT_SIDE",   icon: "flat",  name: "Flat hand sideways", how: "Open hand held flat, fingers pointing sideways", message: "I am tired. I want to rest.", off: true },
+  { key: "BOTH_OPEN",       icon: "🙌", name: "Both palms open",   how: "Both hands up, palms open, held apart",   message: "Emergency! Please call an ambulance.", urgent: true, two: true },
+  { key: "PALMS_TOGETHER",  icon: "🙏", name: "Palms together",    how: "Both palms pressed together, fingers up", message: "Please. Thank you.", two: true },
+  { key: "BOTH_FIST",       icon: "✊✊", name: "Both fists",        how: "Both hands closed into fists, held apart", message: "I cannot breathe.", urgent: true, two: true },
+  { key: "BOTH_THUMBS_UP",  icon: "👍👍", name: "Both thumbs up",    how: "Thumbs up on both hands",                 message: "I am fine, thank you.", two: true },
+  { key: "BOTH_THUMBS_DOWN",icon: "👎👎", name: "Both thumbs down",  how: "Thumbs down on both hands",               message: "I feel very unwell.", urgent: true, two: true },
+  { key: "BOTH_POINT_UP",   icon: "☝️☝️", name: "Both index up",     how: "Index finger up on both hands",           message: "Please hurry.", two: true },
+  { key: "BOTH_VICTORY",    icon: "✌️✌️", name: "Both V signs",      how: "Two fingers up on both hands",            message: "I want to go home.", two: true },
+  { key: "BOTH_CALL",       icon: "🤙🤙", name: "Both call signs",   how: "Thumb and little finger out on both hands", message: "Please call the police.", urgent: true, two: true },
+  { key: "BOTH_ILOVEYOU",   icon: "🤟🤟", name: "Both love signs",   how: "Love sign on both hands",                 message: "Thank you so much.", two: true },
+  { key: "FIST_PALM",       icon: "✊✋", name: "Fist and open palm", how: "One fist and one open palm, held close together", message: "Please call a nurse.", two: true },
+  { key: "CROSSED_FISTS",   icon: "X",  name: "Crossed fists",     how: "Cross both fists or forearms in an X, touching", message: "Please stop. No more.", two: true },
+];
+const MODEL_MAP = {
+  Open_Palm: "OPEN_PALM", Closed_Fist: "CLOSED_FIST", Pointing_Up: "POINTING_UP", Victory: "VICTORY",
+  Thumb_Up: "THUMB_UP", Thumb_Down: "THUMB_DOWN", ILoveYou: "ILOVEYOU",
+};
+const bInfo = k => BUILTIN.find(b => b.key === k);
+
+/* ---------- data ---------- */
+function fresh() {
+  return { builtin: {}, gestures: [], samples: [],
+           settings: { hold: 1.0, conf: 70, speak: true, facing: "user" } };
+}
+function normalize(d) {
+  d.builtin = d.builtin || {}; d.gestures = d.gestures || []; d.samples = d.samples || [];
+  d.settings = Object.assign(fresh().settings, d.settings || {});
+  return d;
+}
+let data = (() => {
+  try { const d = JSON.parse(localStorage.getItem(LS)); if (d && d.settings) return normalize(d); } catch (e) {}
+  return fresh();
+})();
+function save() {
+  try { localStorage.setItem(LS, JSON.stringify(data)); }
+  catch (e) { toast("Storage full - back up and clear old data"); }
+}
+function toast(t) {
+  const el = $("#toast"); el.textContent = t; el.classList.add("show");
+  clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove("show"), 2200);
+}
+const bmsg = k => (data.builtin[k] && data.builtin[k].message) || bInfo(k).message;
+const bon = k => {
+  const o = data.builtin[k];
+  return o && typeof o.on === "boolean" ? o.on : !bInfo(k).off; // some signs start switched off
+};
+const bname = k => (data.builtin[k] && data.builtin[k].name) || bInfo(k).name;
+const bhow = k => (data.builtin[k] && data.builtin[k].how) || bInfo(k).how;
+
+/* ---------- finger rules (extra signs the model does not know) ---------- */
+// RULES-START
+function fingerStates(lm, W, H) {
+  const P = lm.map(q => [q.x * W, q.y * H]);
+  const d = (a, b) => Math.hypot(P[a][0] - P[b][0], P[a][1] - P[b][1]);
+  const v = (a, b) => [P[b][0] - P[a][0], P[b][1] - P[a][1]];
+  const len = a => Math.hypot(a[0], a[1]) || 1;
+  const scale = d(0, 9) || 1;
+  const ext = (tip, pip) => d(tip, 0) / (d(pip, 0) || 1) > 1.1;
+  const iv = v(5, 8), tv = v(2, 4), hv = v(0, 9);
+  return {
+    idx: ext(8, 6), mid: ext(12, 10), rng: ext(16, 14), pnk: ext(20, 18),
+    thumb: d(4, 17) / (d(3, 17) || 1) > 1.08 && d(4, 5) / scale > 0.45,
+    pinch: d(4, 8) / scale,
+    pinchAll: [d(4, 8), d(4, 12), d(4, 16), d(4, 20)].map(x => x / scale),
+    iv, tv, hv, ivLen: len(iv), tvLen: len(tv), hvLen: len(hv),
+    thumbIdxCos: (iv[0] * tv[0] + iv[1] * tv[1]) / (len(iv) * len(tv)),
+  };
+}
+function ruleGesture(s) {
+  const { thumb, idx, mid, rng, pnk, pinch } = s;
+  if (pinch < 0.3 && mid && rng && pnk) return "OK";
+  if (!idx && !mid && !rng && pnk) return thumb ? "CALL" : "PINKY";
+  if (idx && pnk && !mid && !rng && !thumb) return "HORNS";
+  if (idx && mid && rng && !pnk) return "THREE";
+  if (idx && mid && rng && pnk) {
+    if (Math.abs(s.hv[0]) > 1.4 * Math.abs(s.hv[1]) && Math.abs(s.hv[0]) > 0.7 * s.hvLen) return "FLAT_SIDE";
+    return thumb ? null : "FOUR";
+  }
+  if (thumb && idx && !mid && !rng && !pnk && s.thumbIdxCos < 0.5) return "L_SHAPE";
+  if (idx && !mid && !rng && !pnk) {
+    const dx = Math.abs(s.iv[0]), dy = s.iv[1];
+    if (dy > 0.6 * s.ivLen) return "POINT_DOWN";
+    if (dx > 0.75 * s.ivLen && dx > 1.5 * Math.abs(dy)) return "POINT_SIDE";
+    return null; // pointing up is recognised by the model
+  }
+  if (thumb && !idx && !mid && !rng && !pnk && Math.abs(s.tv[0]) > 0.75 * s.tvLen) return "THUMB_SIDE";
+  const p = s.pinchAll;
+  if (!idx && !mid && !rng && !pnk && p[0] < 0.35 && p[1] < 0.35 && p[2] < 0.4 && p[3] < 0.5) return "PINCH_ALL";
+  return null;
+}
+// Two-hand signs: combine what each hand shows and how far apart the hands are.
+function handInfo(lm, W, H) {
+  const x0 = lm[0].x * W, y0 = lm[0].y * H, x9 = lm[9].x * W, y9 = lm[9].y * H;
+  return { cx: x9, cy: y9, scale: Math.hypot(x9 - x0, y9 - y0) || 1 };
+}
+function pairKey(a, b, ia, ib) {
+  if (!a || !b) return null;
+  const n = k => (k === "FOUR" || k === "FLAT_SIDE" ? "OPEN_PALM" : k);
+  a = n(a); b = n(b);
+  const d = Math.hypot(ia.cx - ib.cx, ia.cy - ib.cy), s = (ia.scale + ib.scale) / 2;
+  if (a === "OPEN_PALM" && b === "OPEN_PALM") return d < 1.3 * s ? "PALMS_TOGETHER" : "BOTH_OPEN";
+  if (a === "CLOSED_FIST" && b === "CLOSED_FIST") return d < 1.1 * s ? "CROSSED_FISTS" : "BOTH_FIST";
+  if ((a === "OPEN_PALM" && b === "CLOSED_FIST") || (a === "CLOSED_FIST" && b === "OPEN_PALM"))
+    return d < 1.6 * s ? "FIST_PALM" : null;
+  const same = { THUMB_UP: "BOTH_THUMBS_UP", THUMB_DOWN: "BOTH_THUMBS_DOWN", POINTING_UP: "BOTH_POINT_UP",
+                 VICTORY: "BOTH_VICTORY", CALL: "BOTH_CALL", ILOVEYOU: "BOTH_ILOVEYOU" };
+  return a === b && same[a] ? same[a] : null;
+}
+// RULES-END
+
+/* ---------- own-sign classifier (k-nearest neighbours on landmarks) ---------- */
+function features(lm, side) {
+  const p = lm.map(q => [q.x, q.y, q.z]);
+  if (side === "Left") p.forEach(q => q[0] *= -1);
+  const [wx, wy, wz] = p[0];
+  let max = 0;
+  for (const q of p) {
+    q[0] -= wx; q[1] -= wy; q[2] -= wz;
+    max = Math.max(max, Math.hypot(q[0], q[1]));
+  }
+  const s = max + 1e-6, out = new Array(63);
+  p.forEach((q, i) => { out[i*3] = q[0]/s; out[i*3+1] = q[1]/s; out[i*3+2] = q[2]/s; });
+  return out;
+}
+function dist(a, b) {
+  let s = 0;
+  for (let i = 0; i < 63; i++) { const d = a[i] - b[i]; s += d * d; }
+  return Math.sqrt(s);
+}
+function classify(f) {
+  const S = data.samples;
+  if (S.length < 5) return null;
+  const d = S.map(s => [dist(f, s.f), s.l]).sort((a, b) => a[0] - b[0]);
+  const k = Math.min(7, d.length), votes = {};
+  let tot = 0;
+  for (let i = 0; i < k; i++) {
+    const w = 1 / (d[i][0] + 0.05);
+    votes[d[i][1]] = (votes[d[i][1]] || 0) + w; tot += w;
+  }
+  let best = null;
+  for (const l in votes) if (best === null || votes[l] > votes[best]) best = l;
+  return { label: best, conf: votes[best] / tot, near: d[0][0] };
+}
+
+/* ---------- decide which sign is being shown ---------- */
+function handKeys(h, W, H) {
+  const thr = data.settings.conf / 100, g = h.g;
+  const r = ruleGesture(fingerStates(h.lm, W, H));
+  const m = g && g.categoryName !== "None" && g.score >= thr ? (MODEL_MAP[g.categoryName] || null) : null;
+  return { r, m };
+}
+function identify(last) {
+  const thr = data.settings.conf / 100, hs = last.hands, W = last.W, H = last.H;
+  const keys = hs.map(h => handKeys(h, W, H));
+  if (hs.length === 2) {
+    const a = keys[0].r || keys[0].m, b = keys[1].r || keys[1].m;
+    const pair = pairKey(a, b, handInfo(hs[0].lm, W, H), handInfo(hs[1].lm, W, H));
+    if (pair && bon(pair)) return { key: pair };
+  }
+  for (let i = 0; i < hs.length; i++) {
+    const h = hs[i];
+    if (h.feat && data.samples.length >= 5) {
+      const c = classify(h.feat);
+      if (c && c.near <= MAX_DIST && c.conf >= thr) {
+        if (c.label === "NEUTRAL") { if (c.near < 0.5) continue; }
+        else return { key: "C:" + c.label };
+      }
+    }
+    const { r, m } = keys[i];
+    if (r && bon(r)) return { key: r };
+    if (m && bon(m)) return { key: m };
+  }
+  return null;
+}
+function nameOf(key) { return key.startsWith("C:") ? key.slice(2) : bname(key); }
+
+/* ---------- camera + model ---------- */
+const video = $("#video"), canvas = $("#overlay"), ctx = canvas.getContext("2d");
+let recognizer = null, running = false, stream = null, wake = null;
+
+async function loadModel() {
+  const fileset = await FilesetResolver.forVisionTasks(WASM);
+  const opts = d => ({ baseOptions: { modelAssetPath: MODEL, delegate: d }, runningMode: "VIDEO", numHands: 2 });
+  try { recognizer = await GestureRecognizer.createFromOptions(fileset, opts("GPU")); }
+  catch (e) { recognizer = await GestureRecognizer.createFromOptions(fileset, opts("CPU")); }
+}
+async function openCamera() {
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  stream = await navigator.mediaDevices.getUserMedia({
+    video: { facingMode: { ideal: data.settings.facing }, width: { ideal: 640 }, height: { ideal: 480 } },
+    audio: false });
+  video.srcObject = stream;
+  await video.play();
+  $("#stage").classList.toggle("mirror", data.settings.facing === "user");
+}
+async function boot() {
+  const st = $("#status"), btn = $("#startBtn");
+  btn.disabled = true; btn.textContent = "Starting…";
+  try {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia)
+      throw new Error("this page must be opened from an https link (or localhost) in Chrome or Safari");
+    st.textContent = "Please tap Allow when your browser asks for the camera.";
+    await openCamera();
+    st.textContent = "Loading the sign recogniser (first time needs internet, about 10 MB)…";
+    if (!recognizer) await loadModel();
+    try { wake = await navigator.wakeLock?.request("screen"); } catch (e) {}
+    $("#start").classList.add("hide");
+    running = true; requestAnimationFrame(loop);
+  } catch (e) {
+    const denied = e && (e.name === "NotAllowedError" || e.name === "SecurityError");
+    st.textContent = denied
+      ? "Camera is blocked. Tap the lock or camera icon in the address bar, set Camera to Allow, then tap Try again."
+      : "Could not start: " + (e.message || e);
+    btn.disabled = false; btn.textContent = "Try again";
+  }
+}
+$("#startBtn").onclick = () => { unlockSpeech(); boot(); };
+// Speech needs one tap on the page before it may talk; this unlocks it on the first touch.
+document.addEventListener("pointerdown", () => unlockSpeech(), { once: true });
+document.addEventListener("visibilitychange", async () => {
+  if (document.visibilityState === "visible" && running) {
+    try { wake = await navigator.wakeLock?.request("screen"); } catch (e) {}
+  }
+});
+
+/* ---------- speech ---------- */
+function unlockSpeech() {
+  try { const u = new SpeechSynthesisUtterance(" "); u.volume = 0; speechSynthesis.speak(u); } catch (e) {}
+}
+function say(text) {
+  if (!data.settings.speak) return;
+  try {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text); u.rate = 0.95; u.volume = 1;
+    speechSynthesis.speak(u);
+  } catch (e) {}
+}
+
+/* ---------- banner / history / chip ---------- */
+let mode = "talk", rec = null;
+let banner = { text: "", kind: "", until: 0 };
+let shown = "", chipShown = "";
+function setBanner(text, kind, ms) {
+  banner = { text, kind, until: ms ? performance.now() + ms : 0 };
+}
+function paintBanner(now) {
+  let t = banner.text, k = banner.kind;
+  if (banner.until && now > banner.until) { banner = { text: "", kind: "", until: 0 }; t = ""; k = ""; }
+  if (mode === "talk" && !t) { t = "Show a sign and hold it"; k = ""; }
+  if (mode === "teach" && !t && !rec) { t = "Teach mode"; k = "info"; }
+  const key = k + "|" + t;
+  if (key !== shown) { shown = key; const el = $("#banner"); el.textContent = t; el.className = k; }
+}
+function paintChip(t) { if (t !== chipShown) { chipShown = t; $("#chip").textContent = t; } }
+const history = [];
+function addHistory(text) {
+  history.unshift({ text, time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) });
+  history.length = Math.min(history.length, 8);
+  $("#hist").innerHTML = history.map(h => `<li><b>${esc(h.text)}</b><span>${h.time}</span></li>`).join("");
+}
+
+/* ---------- main loop ---------- */
+let lastVideoTime = -1, last = { res: null, hands: [], W: 1, H: 1 };
+let cand = null, since = 0, fired = false;
+
+function announce(key) {
+  let text, urgent = false;
+  if (key.startsWith("C:")) {
+    const n = key.slice(2), g = data.gestures.find(g => g.name === n);
+    text = (g && g.message) || n;
+  } else { text = bmsg(key); urgent = !!bInfo(key).urgent; }
+  setBanner(text, urgent ? "alert" : "ok", 4500);
+  say(text); addHistory(text);
+  navigator.vibrate?.(200);
+}
+function holdStep(key, now) {
+  if (!key) { cand = null; fired = false; return 0; }
+  if (key !== cand) { cand = key; since = now; fired = false; return 0; }
+  const p = Math.min((now - since) / (data.settings.hold * 1000), 1);
+  if (p >= 1 && !fired) { fired = true; announce(key); }
+  return p;
+}
+function loop() {
+  if (!running) return;
+  requestAnimationFrame(loop);
+  const now = performance.now();
+
+  if (video.readyState >= 2 && video.currentTime !== lastVideoTime) {
+    lastVideoTime = video.currentTime;
+    if (canvas.width !== video.videoWidth) { canvas.width = video.videoWidth; canvas.height = video.videoHeight; }
+    const res = recognizer.recognizeForVideo(video, now);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    last = { res, hands: [], W: canvas.width, H: canvas.height };
+    (res.landmarks || []).forEach((lm, i) => {
+      const side = (res.handedness && res.handedness[i] && res.handedness[i][0] && res.handedness[i][0].categoryName) || "Right";
+      const g = (res.gestures && res.gestures[i] && res.gestures[i][0]) || null;
+      last.hands.push({ lm, side, g, feat: features(lm, side) });
+      drawHand(lm);
+    });
+  }
+
+  let progress = 0;
+  if (mode === "talk") {
+    const n = last.hands.length;
+    const hit = n ? identify(last) : null;
+    paintChip(hit ? "Seeing: " + nameOf(hit.key) : n === 2 ? "Two hands in view" : n ? "Hand in view" : "No hand in view");
+    if (hit && !fired && hit.key === cand) setBanner(nameOf(hit.key) + "…", "info", 300);
+    progress = holdStep(hit ? hit.key : null, now);
+  } else {
+    const h0 = last.hands[0];
+    paintChip(h0 ? "Hand in view" : "No hand in view");
+    if (rec && rec.active) {
+      if (h0 && now - rec.last > 70) {
+        data.samples.push({ l: rec.label, f: h0.feat.map(v => Math.round(v * 1000) / 1000) });
+        rec.last = now; rec.n++;
+      }
+      setBanner(`Recording ${rec.label}: ${rec.n}`, "alert", 300);
+      progress = Math.min(1, 1 - (rec.until - now) / 5000);
+      if (now > rec.until) finishRecording();
+    }
+  }
+  $("#barfill").style.width = (progress * 100) + "%";
+  paintBanner(now);
+}
+function drawHand(lm) {
+  const W = canvas.width, H = canvas.height;
+  ctx.lineWidth = 3; ctx.strokeStyle = "#4c8dff"; ctx.fillStyle = "#fff";
+  for (const c of GestureRecognizer.HAND_CONNECTIONS) {
+    ctx.beginPath(); ctx.moveTo(lm[c.start].x * W, lm[c.start].y * H);
+    ctx.lineTo(lm[c.end].x * W, lm[c.end].y * H); ctx.stroke();
+  }
+  for (const p of lm) { ctx.beginPath(); ctx.arc(p.x * W, p.y * H, 4, 0, 7); ctx.fill(); }
+}
+
+/* ---------- built-in signs list ---------- */
+function renderSigns() {
+  $("#slist").innerHTML = BUILTIN.map((b, i) => `
+    ${b.two && !BUILTIN[i - 1].two ? `<h2 style="margin-top:16px">Two-hand signs</h2><p class="hint">Show both hands to the camera at the same time.</p>` : ""}
+    <div class="sign">
+      <div class="ico ${/^[a-z]{2,}/i.test(b.icon) ? "sm" : b.two && b.icon.length > 2 ? "two" : ""}">${b.icon}</div>
+      <div class="info">
+        <b>${esc(bname(b.key))}</b><small>${esc(bhow(b.key))}</small>
+        <input type="text" data-bmsg="${b.key}" value="${esc(bmsg(b.key))}" aria-label="Message for ${esc(bname(b.key))}">
+      </div>
+      <label class="sw"><input type="checkbox" data-on="${b.key}" ${bon(b.key) ? "checked" : ""} aria-label="Use ${esc(bname(b.key))}"></label>
+    </div>`).join("");
+}
+$("#slist").addEventListener("change", e => {
+  const t = e.target;
+  if (t.dataset.bmsg) {
+    const k = t.dataset.bmsg;
+    data.builtin[k] = Object.assign(data.builtin[k] || {}, { message: t.value.trim() || bInfo(k).message });
+  } else if (t.dataset.on) {
+    const k = t.dataset.on;
+    data.builtin[k] = Object.assign(data.builtin[k] || {}, { on: t.checked });
+  }
+  save();
+});
+$("#resetMsgs").onclick = () => {
+  data.builtin = {}; save(); renderSigns(); toast("Signs reset to defaults");
+};
+
+/* ---------- signs file (signs.json) ---------- */
+// Accepts {"signs":[{key,message,name,how,enabled}]}, a bare list, or {"OPEN_PALM":"message"}.
+function applySignsFile(obj) {
+  const list = Array.isArray(obj) ? obj
+    : Array.isArray(obj.signs) ? obj.signs
+    : Object.entries(obj.signs || obj).filter(([, v]) => typeof v === "string").map(([key, message]) => ({ key, message }));
+  let n = 0;
+  for (const s of list) {
+    const key = String(s.key || "").toUpperCase();
+    if (!bInfo(key)) continue;
+    const cur = data.builtin[key] = data.builtin[key] || {};
+    if (typeof s.message === "string" && s.message.trim()) cur.message = s.message.trim();
+    if (typeof s.name === "string" && s.name.trim()) cur.name = s.name.trim();
+    if (typeof s.how === "string" && s.how.trim()) cur.how = s.how.trim();
+    if (typeof s.enabled === "boolean") cur.on = s.enabled;
+    n++;
+  }
+  return n;
+}
+async function loadSignsFile() {
+  try {
+    const r = await fetch("signs.json", { cache: "no-store" });
+    if (!r.ok) return;
+    const obj = await r.json();
+    const v = String(obj.version == null ? "" : obj.version);
+    if (v && data.fileVersion === v) return; // already applied; change "version" in the file to apply again
+    const n = applySignsFile(obj);
+    data.fileVersion = v; save(); renderSigns();
+    if (n) toast(`Loaded ${n} signs from signs.json`);
+  } catch (e) {}
+}
+$("#loadFile").onclick = () => $("#signsFile").click();
+$("#signsFile").onchange = async e => {
+  try {
+    const d = JSON.parse(await e.target.files[0].text());
+    const n = applySignsFile(d);
+    if (!n) throw 0;
+    save(); renderSigns(); toast(`Loaded ${n} signs`);
+  } catch (err) { toast("Could not read that signs file"); }
+  e.target.value = "";
+};
+$("#saveFile").onclick = () => {
+  const out = { version: String(Date.now()),
+    signs: BUILTIN.map(b => ({ key: b.key, name: bname(b.key), how: bhow(b.key), message: bmsg(b.key), enabled: bon(b.key) })) };
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(out, null, 2)], { type: "application/json" }));
+  a.download = "signs.json"; a.click();
+};
+
+/* ---------- own signs (optional teaching) ---------- */
+let selected = "NEUTRAL";
+const count = n => data.samples.reduce((a, s) => a + (s.l === n), 0);
+
+function renderGestures() {
+  const rows = [{ name: "NEUTRAL", message: null }, ...data.gestures];
+  $("#glist").innerHTML = rows.map(g => `
+    <div class="row ${g.name === selected ? "sel" : ""}" data-n="${esc(g.name)}">
+      <span class="nm">${esc(g.name)}</span>
+      <span class="ct">${count(g.name)}</span>
+      ${g.message === null
+        ? `<span class="hint" style="margin:0;flex:1">resting hand, no message</span>`
+        : `<input data-msg="${esc(g.name)}" value="${esc(g.message)}" aria-label="Spoken message for ${esc(g.name)}">
+           <button class="danger" data-del="${esc(g.name)}" aria-label="Delete ${esc(g.name)}">✕</button>`}
+    </div>`).join("");
+}
+$("#glist").addEventListener("click", e => {
+  const del = e.target.closest("[data-del]");
+  if (del) {
+    const n = del.dataset.del;
+    if (!confirm(`Delete "${n}" and its samples?`)) return;
+    data.gestures = data.gestures.filter(g => g.name !== n);
+    data.samples = data.samples.filter(s => s.l !== n);
+    if (selected === n) selected = "NEUTRAL";
+    save(); renderGestures(); return;
+  }
+  if (e.target.matches("input")) return;
+  const row = e.target.closest(".row");
+  if (row) { selected = row.dataset.n; renderGestures(); }
+});
+$("#glist").addEventListener("change", e => {
+  const n = e.target.dataset.msg;
+  if (!n) return;
+  data.gestures.find(g => g.name === n).message = e.target.value.trim();
+  save();
+});
+$("#addBtn").onclick = () => {
+  const name = $("#newName").value.trim().toUpperCase();
+  if (!name) return;
+  if (name === "NEUTRAL" || data.gestures.some(g => g.name === name)) return toast("That name exists");
+  data.gestures.push({ name, message: name.charAt(0) + name.slice(1).toLowerCase() + "." });
+  $("#newName").value = ""; selected = name; save(); renderGestures();
+};
+$("#clearSel").onclick = () => {
+  if (!confirm(`Remove all samples for ${selected}?`)) return;
+  data.samples = data.samples.filter(s => s.l !== selected); save(); renderGestures();
+};
+$("#recBtn").onclick = async () => {
+  if (!running) return toast("Camera is not ready yet");
+  if (rec) return;
+  rec = { active: false };
+  for (let i = 3; i > 0; i--) { setBanner(`${selected} in ${i}…`, "info", 1100); await sleep(1000); }
+  rec = { active: true, label: selected, n: 0, last: 0, until: performance.now() + 5000 };
+};
+function finishRecording() {
+  const n = rec.n, label = rec.label; rec = null;
+  save(); renderGestures();
+  setBanner(n ? `Saved ${n} samples for ${label}` : "No hand seen - try again", n ? "ok" : "alert", 2500);
+  navigator.vibrate?.(100);
+}
+
+/* ---------- tabs + settings ---------- */
+const TABS = ["talk", "signs", "teach", "set"];
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("nav button").forEach(x => x.classList.toggle("on", x === b));
+  for (const t of TABS) $("#tab-" + t).classList.toggle("hide", t !== b.dataset.tab);
+  mode = b.dataset.tab === "teach" ? "teach" : "talk";
+  cand = null; fired = false; setBanner("", "", 0);
+  if (mode === "teach") renderGestures();
+});
+function syncSettings() {
+  $("#hold").value = data.settings.hold; $("#holdV").textContent = data.settings.hold;
+  $("#conf").value = data.settings.conf; $("#confV").textContent = data.settings.conf;
+  $("#speak").checked = data.settings.speak;
+}
+$("#hold").oninput = e => { data.settings.hold = +e.target.value; $("#holdV").textContent = e.target.value; save(); };
+$("#conf").oninput = e => { data.settings.conf = +e.target.value; $("#confV").textContent = e.target.value; save(); };
+$("#speak").onchange = e => { data.settings.speak = e.target.checked; save(); };
+$("#test").onclick = () => { unlockSpeech(); say("Voice test. I need help."); };
+$("#flip").onclick = async () => {
+  data.settings.facing = data.settings.facing === "user" ? "environment" : "user"; save();
+  if (running) { try { await openCamera(); } catch (e) { toast("Camera switch failed"); } }
+  toast("Own signs may need re-teaching after a camera change");
+};
+$("#export").onclick = () => {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: "application/json" }));
+  a.download = "signspeak-backup.json"; a.click();
+};
+$("#import").onclick = () => $("#file").click();
+$("#file").onchange = async e => {
+  try {
+    const d = JSON.parse(await e.target.files[0].text());
+    if (!d.settings && !d.gestures) throw 0;
+    data = normalize(d); save(); syncSettings(); renderSigns(); renderGestures(); toast("Backup restored");
+  } catch (err) { toast("Not a valid backup file"); }
+};
+$("#reset").onclick = () => {
+  if (!confirm("Erase all settings and own signs?")) return;
+  data = fresh(); save(); syncSettings(); renderSigns(); renderGestures();
+};
+
+syncSettings(); renderSigns(); renderGestures(); loadSignsFile();
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+boot(); // ask for the camera as soon as the page opens
+</script>
+</body>
+</html>
